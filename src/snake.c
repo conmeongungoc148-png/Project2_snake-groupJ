@@ -14,7 +14,7 @@ void InitSnake(Snake* snake) {
     
     snake->direction = (Vector2){0, -1}; // Moving UP initially
     snake->moveTimer = 0.0f;
-    snake->timePerMove = 0.12f; // Smooth comfortable speed
+    snake->timePerMove = 0.24f; // Slower speed (reduced by 50%)
     snake->inputQueueLength = 0;
     snake->isAlive = true;
     snake->justAteFood = false;
