@@ -1,26 +1,59 @@
 #include "food.h"
 #include "game.h"
 
-void InitFood(Food* food, Snake* snake) {
-    SpawnFood(food, snake);
-}
+void InitFood(Food *food, Snake *snake, GameData *game) { SpawnFood(food, snake, game); }
 
-void SpawnFood(Food* food, Snake* snake) {
-    bool valid = false;
-    while (!valid) {
-        // Generate random coordinate between 0 and GRID_COUNT - 1
-        food->position.x = (float)GetRandomValue(0, GRID_COUNT_X - 1);
-        food->position.y = (float)GetRandomValue(0, GRID_COUNT_Y - 1);
-        valid = true;
-        
-        // Ensure food doesn't spawn inside snake body
-        for (int i = 0; i < snake->length; i++) {
-            if (food->position.x == snake->body[i].x && food->position.y == snake->body[i].y) {
-                valid = false;
-                break; // Try again
-            }
-        }
+void SpawnFood(Food *food, Snake *snake, GameData *game) {
+  // Stage 1: Random Sampling
+  for (int attempts = 0; attempts < 64; attempts++) {
+    int rx = GetRandomValue(0, GRID_COUNT_X - 1);
+    int ry = GetRandomValue(0, GRID_COUNT_Y - 1);
+
+    if (game->map[rx][ry] != TILE_EMPTY)
+      continue;
+
+    bool inside = false;
+    for (int i = 0; i < snake->length; i++) {
+      if ((int)snake->body[i].x == rx && (int)snake->body[i].y == ry) {
+        inside = true;
+        break;
+      }
     }
+
+    if (!inside) {
+      food->position = (Vector2){(float)rx, (float)ry};
+      return;
+    }
+  }
+
+  // Stage 2: Exhaustive Fallback
+  Vector2 emptyCells[GRID_COUNT_X * GRID_COUNT_Y];
+  int emptyCount = 0;
+
+  for (int x = 0; x < GRID_COUNT_X; x++) {
+    for (int y = 0; y < GRID_COUNT_Y; y++) {
+      if (game->map[x][y] != TILE_EMPTY)
+        continue;
+
+      bool inside = false;
+      for (int i = 0; i < snake->length; i++) {
+        if ((int)snake->body[i].x == x && (int)snake->body[i].y == y) {
+          inside = true;
+          break;
+        }
+      }
+      if (!inside) {
+        emptyCells[emptyCount++] = (Vector2){(float)x, (float)y};
+      }
+    }
+  }
+
+  if (emptyCount > 0) {
+    int randomIndex = GetRandomValue(0, emptyCount - 1);
+    food->position = emptyCells[randomIndex];
+  } else {
+    food->position = (Vector2){-1.0f, -1.0f};
+  }
 }
 
 void DrawFood(Food* food, Texture2D fruitTex) {

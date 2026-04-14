@@ -8,8 +8,8 @@ typedef struct Food {
     Vector2 position;
 } Food;
 
-void InitFood(Food* food, Snake* snake);
-void SpawnFood(Food* food, Snake* snake);
+void InitFood(Food* food, Snake* snake, GameData* game);
+void SpawnFood(Food* food, Snake* snake, GameData* game);
 void DrawFood(Food* food, Texture2D fruitTex);
 
 #endif // FOOD_H
