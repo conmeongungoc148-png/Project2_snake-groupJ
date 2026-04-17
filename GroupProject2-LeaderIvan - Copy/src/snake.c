@@ -1,5 +1,6 @@
 #include "snake.h"
 #include "game.h"
+#include <math.h>
 
 void InitSnake(Snake *snake) {
   snake->length = 3;
@@ -18,6 +19,7 @@ void InitSnake(Snake *snake) {
   snake->inputQueueLength = 0;
   snake->isAlive = true;
   snake->justAteFood = false;
+  snake->invincibilityTimer = 0.0f;
 }
 
 void HandleSnakeInput(Snake *snake) {
@@ -62,7 +64,7 @@ void HandleSnakeInput(Snake *snake) {
   }
 }
 
-void UpdateSnakeLogic(Snake *snake) {
+void UpdateSnakeLogic(Snake *snake, GameData *game) {
   if (!snake->isAlive)
     return;
 
@@ -90,27 +92,69 @@ void UpdateSnakeLogic(Snake *snake) {
   // Move head
   snake->body[0].x += snake->direction.x;
   snake->body[0].y += snake->direction.y;
+
+  // Grid Wrapping (Xuyên biên)
+  if (snake->body[0].x < 0) snake->body[0].x = GRID_COUNT_X - 1;
+  else if (snake->body[0].x >= GRID_COUNT_X) snake->body[0].x = 0;
+
+  if (snake->body[0].y < 0) snake->body[0].y = GRID_COUNT_Y - 1;
+  else if (snake->body[0].y >= GRID_COUNT_Y) snake->body[0].y = 0;
+  
+  // Portal logic
+  int hx = (int)snake->body[0].x;
+  int hy = (int)snake->body[0].y;
+  if (hx >= 0 && hx < GRID_COUNT_X && hy >= 0 && hy < GRID_COUNT_Y) {
+      if (game->map[hx][hy] == TILE_PORTAL) {
+          int pIdx = (hx == (int)game->portals[0].x && hy == (int)game->portals[0].y) ? 1 : 0;
+          snake->body[0] = game->portals[pIdx];
+      }
+  }
 }
 
-bool CheckCollisionWithSelfOrWall(Snake *snake) {
+bool CheckCollisionWithSelfOrWall(Snake *snake, GameData *game) {
   Vector2 head = snake->body[0];
 
-  // Wall check
+  // Grid bounds check (Đã tắt để hỗ trợ Xuyên Biên)
+  /*
   if (head.x < 0 || head.x >= GRID_COUNT_X || head.y < 0 ||
       head.y >= GRID_COUNT_Y) {
     snake->isAlive = false;
     return true;
   }
+  */
+  
+  // Map wall check (Skip if invincible)
+  if (game->map[(int)head.x][(int)head.y] == TILE_WALL) {
+      if (snake->invincibilityTimer <= 0) {
+          snake->isAlive = false;
+          return true;
+      }
+  }
 
-  // Self check
-  for (int i = 1; i < snake->length; i++) {
-    if (head.x == snake->body[i].x && head.y == snake->body[i].y) {
-      snake->isAlive = false;
-      return true;
+  // Self check (Skip if invincible)
+  if (snake->invincibilityTimer <= 0) {
+    for (int i = 1; i < snake->length; i++) {
+      if (head.x == snake->body[i].x && head.y == snake->body[i].y) {
+        snake->isAlive = false;
+        return true;
+      }
     }
   }
 
   return false;
+}
+
+void ReverseSnake(Snake* snake) {
+    for (int i = 0; i < snake->length / 2; i++) {
+        Vector2 temp = snake->body[i];
+        snake->body[i] = snake->body[snake->length - 1 - i];
+        snake->body[snake->length - 1 - i] = temp;
+    }
+    if (snake->length > 1) {
+        snake->direction.x = snake->body[0].x - snake->body[1].x;
+        snake->direction.y = snake->body[0].y - snake->body[1].y;
+    }
+    snake->inputQueueLength = 0;
 }
 
 // Helper to draw rotated texture
@@ -132,6 +176,13 @@ void DrawSnake(Snake *snake, Texture2D headTex, Texture2D bodyTex,
   // GRID_SIZE.
   float overlapDiameter = (float)GRID_SIZE;
 
+  // Pulse transparency color if invincible
+  Color snakeAlphaTint = WHITE;
+  if (snake->invincibilityTimer > 0) {
+      float pulse = (sinf((float)GetTime() * 20.0f) + 1.0f) * 0.4f + 0.2f;
+      snakeAlphaTint = (Color){255, 255, 255, (unsigned char)(255 * pulse)};
+  }
+
   // HIGHEST Z-INDEX is HEAD. LOWEST Z-INDEX is TAIL.
   // So we loop backwards: Tail -> Body -> Head (so head is rendered last and
   // stays on top)
@@ -140,61 +191,54 @@ void DrawSnake(Snake *snake, Texture2D headTex, Texture2D bodyTex,
     Vector2 center = {gridPos.x * GRID_SIZE + (GRID_SIZE / 2.0f),
                       gridPos.y * GRID_SIZE + (GRID_SIZE / 2.0f)};
 
+    // --- OVERLAY GRADIENT COLOR (Yellow overlay fading from 0.2 to 0.5) ---
+    // t goes from 0.0 (head) to 1.0 (tail)
+    float t = (snake->length > 1) ? (float)i / (float)(snake->length - 1) : 0.0f;
+    // Alpha ranges from 20% (0.2 * 255) to 50% (0.5 * 255)
+    unsigned char alpha = (unsigned char)(255 * (0.2f + (0.5f - 0.2f) * t));
+    Color overlayColor = { 255, 255, 0, alpha }; 
+    // -----------------------------------------------------------------------
+
     if (i == 0) { // HEAD
       if (headTex.id != 0) {
         float scale = overlapDiameter / (float)headTex.width;
         float rot = 0.0f;
-        // Raylib rotation is in degrees. Adjust if your image points a
-        // different default way. Assuming default head sprite points UP
-        if (snake->direction.x == 1)
-          rot = 90.0f;
-        else if (snake->direction.x == -1)
-          rot = 270.0f;
-        else if (snake->direction.y == 1)
-          rot = 180.0f;
-        else if (snake->direction.y == -1)
-          rot = 0.0f;
+        if (snake->direction.x == 1) rot = 90.0f;
+        else if (snake->direction.x == -1) rot = 270.0f;
+        else if (snake->direction.y == 1) rot = 180.0f;
+        else if (snake->direction.y == -1) rot = 0.0f;
+        rot += 90.0f; 
 
-        rot += 90.0f; // User requested: lật sang phải 1 lần
-
-        DrawTextureCenteredEx(headTex, center, rot, scale, WHITE);
+        // 1. Draw Original Texture
+        DrawTextureCenteredEx(headTex, center, rot, scale, snakeAlphaTint);
+        // 2. Draw Color Overlay (Square)
+        DrawRectangle(gridPos.x * GRID_SIZE, gridPos.y * GRID_SIZE, GRID_SIZE, GRID_SIZE, overlayColor);
       } else {
-        DrawRectangle(gridPos.x * GRID_SIZE, gridPos.y * GRID_SIZE, GRID_SIZE,
-                      GRID_SIZE, DARKGREEN);
+        DrawRectangle(gridPos.x * GRID_SIZE, gridPos.y * GRID_SIZE, GRID_SIZE, GRID_SIZE, YELLOW);
       }
     } else if (i == snake->length - 1) { // TAIL
       if (tailTex.id != 0) {
         float scale = overlapDiameter / (float)tailTex.width;
-        // Rotation based on the segment it is attached to (i-1)
-        Vector2 diff = {snake->body[i - 1].x - snake->body[i].x,
-                        snake->body[i - 1].y - snake->body[i].y};
+        Vector2 diff = {snake->body[i - 1].x - snake->body[i].x, snake->body[i - 1].y - snake->body[i].y};
         float rot = 0.0f;
-        // Assuming tail points UP towards the body
-        if (diff.x == 1)
-          rot = 90.0f;
-        else if (diff.x == -1)
-          rot = 270.0f;
-        else if (diff.y == 1)
-          rot = 180.0f;
-        else if (diff.y == -1)
-          rot = 0.0f;
+        if (diff.x == 1) rot = 90.0f;
+        else if (diff.x == -1) rot = 270.0f;
+        else if (diff.y == 1) rot = 180.0f;
+        else if (diff.y == -1) rot = 0.0f;
+        rot += 90.0f;
 
-        rot += 90.0f; // User requested: lật sang phải 1 lần
-
-        DrawTextureCenteredEx(tailTex, center, rot, scale, WHITE);
+        DrawTextureCenteredEx(tailTex, center, rot, scale, snakeAlphaTint);
+        DrawRectangle(gridPos.x * GRID_SIZE, gridPos.y * GRID_SIZE, GRID_SIZE, GRID_SIZE, overlayColor);
       } else {
-        DrawRectangle(gridPos.x * GRID_SIZE, gridPos.y * GRID_SIZE, GRID_SIZE,
-                      GRID_SIZE, GREEN);
+        DrawRectangle(gridPos.x * GRID_SIZE, gridPos.y * GRID_SIZE, GRID_SIZE, GRID_SIZE, YELLOW);
       }
     } else { // BODY
       if (bodyTex.id != 0) {
         float scale = overlapDiameter / (float)bodyTex.width;
-        // Body circles don't strictly need rotation
-        DrawTextureCenteredEx(bodyTex, center, 0.0f, scale, WHITE);
+        DrawTextureCenteredEx(bodyTex, center, 0.0f, scale, snakeAlphaTint);
+        DrawRectangle(gridPos.x * GRID_SIZE, gridPos.y * GRID_SIZE, GRID_SIZE, GRID_SIZE, overlayColor);
       } else {
-        Color tint = (i % 2 == 0) ? LIME : GREEN;
-        // Fallback circular overlap
-        DrawCircle(center.x, center.y, overlapDiameter / 2.0f, tint);
+        DrawCircle(center.x, center.y, overlapDiameter / 2.0f, overlayColor);
       }
     }
   }

@@ -22,12 +22,14 @@ typedef struct Snake {
     
     bool isAlive;
     bool justAteFood;
+    float invincibilityTimer;
 } Snake;
 
 void InitSnake(Snake* snake);
 void HandleSnakeInput(Snake* snake);
-void UpdateSnakeLogic(Snake* snake);
+void UpdateSnakeLogic(Snake* snake, GameData* game);
 void DrawSnake(Snake* snake, Texture2D headTex, Texture2D bodyTex, Texture2D tailTex);
-bool CheckCollisionWithSelfOrWall(Snake* snake);
+bool CheckCollisionWithSelfOrWall(Snake* snake, GameData* game);
+void ReverseSnake(Snake* snake);
 
 #endif // SNAKE_H

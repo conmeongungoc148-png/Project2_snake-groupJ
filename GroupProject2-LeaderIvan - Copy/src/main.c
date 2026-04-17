@@ -13,7 +13,7 @@ int main(void) {
   // Attempt to load textures. Raylib will harmlessly warn if files are missing
   // and return id = 0. The drawing logic in game.c and snake.c expects this and
   // uses fallback shapes if id == 0.
-  gameData.assets.mainFont = LoadFont("assets/font/Inter-ExtraBold.otf");
+  gameData.assets.mainFont = LoadFont("assets/font/04B_30__.TTF");
   gameData.assets.headTex = LoadTexture("assets/snake/head.png");
   gameData.assets.bodyTex = LoadTexture("assets/snake/body.png");
   gameData.assets.tailTex = LoadTexture("assets/snake/tail.png");
@@ -24,7 +24,7 @@ int main(void) {
   InitSnake(&snake);
 
   Food food = {0};
-  InitFood(&food, &snake);
+  InitFood(&food, &snake, &gameData);
 
   RestartGame(&gameData, &snake, &food);
 

@@ -68,7 +68,6 @@ void DrawFood(Food* food, Texture2D fruitTex) {
     if (fruitTex.id != 0) {
         // Draw the user provided fruit.png
         float diam = radius * 2.0f;
-        float scale = diam / (float)fruitTex.width;
         Rectangle source = {0, 0, (float)fruitTex.width, (float)fruitTex.height};
         Rectangle dest = {center.x, center.y, diam, diam};
         Vector2 origin = {diam / 2.0f, diam / 2.0f};

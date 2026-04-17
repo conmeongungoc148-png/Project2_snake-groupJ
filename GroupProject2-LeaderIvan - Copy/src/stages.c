@@ -5,8 +5,19 @@
 
 #include "raymath.h"
 
-// Navigation helpers removed
-
+static bool IsNearWall(GameData *game, int x, int y) {
+  for (int dx = -1; dx <= 1; dx++) {
+    for (int dy = -1; dy <= 1; dy++) {
+      int nx = x + dx;
+      int ny = y + dy;
+      if (nx >= 0 && nx < GRID_COUNT_X && ny >= 0 && ny < GRID_COUNT_Y) {
+        if (game->map[nx][ny] == TILE_WALL)
+          return true;
+      }
+    }
+  }
+  return false;
+}
 
 void LoadStage(GameData *game, int level) {
   game->currentLevel = level;
@@ -128,5 +139,34 @@ void LoadChaosStage(GameData *game, int level) {
     LoadStage(game, 4); // The Castle
   }
 
-  // Portal logic removed to fix building and gameplay bugs
+  // Portal Pair (Always refresh)
+  game->portals[0] = (Vector2){-1, -1};
+  game->portals[1] = (Vector2){-1, -1};
+  int p = 0;
+  while (p < 2) {
+    int rx = GetRandomValue(3, GRID_COUNT_X - 4);
+    int ry = GetRandomValue(3, GRID_COUNT_Y - 4);
+
+    // 5x5 Spawn Safe Zone check
+    if (rx >= 13 && rx <= 17 && ry >= 13 && ry <= 17)
+      continue;
+
+    // Rule: Portals must be at least 1 block away from any wall
+    if (IsNearWall(game, rx, ry))
+      continue;
+
+    if (game->map[rx][ry] == TILE_EMPTY) {
+      Vector2 newPos = {(float)rx, (float)ry};
+
+      // Rule: Portal 2 must be at least 7 blocks away from Portal 1
+      if (p == 1) {
+        if (Vector2Distance(newPos, game->portals[0]) < 12.000001f)
+          continue;
+      }
+
+      game->map[rx][ry] = TILE_PORTAL;
+      game->portals[p] = newPos;
+      p++;
+    }
+  }
 }

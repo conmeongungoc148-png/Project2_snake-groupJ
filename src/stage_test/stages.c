@@ -2,11 +2,7 @@
 #include "game.h"
 #include "raylib.h"
 #include "snake.h"
-
-#include "raymath.h"
-
-// Navigation helpers removed
-
+#include <math.h>
 
 void LoadStage(GameData *game, int level) {
   game->currentLevel = level;
@@ -19,17 +15,17 @@ void LoadStage(GameData *game, int level) {
   }
 
   if (level == 2) {
-    // Corners Box layout
+    // Corners Box layout - Offset by 1 to allow portal wrapping
     int size = 7;
-    for (int i = 0; i < size; i++) {
-      game->map[i][0] = TILE_WALL;
-      game->map[0][i] = TILE_WALL;
-      game->map[GRID_COUNT_X - 1 - i][0] = TILE_WALL;
-      game->map[GRID_COUNT_X - 1][i] = TILE_WALL;
-      game->map[i][GRID_COUNT_Y - 1] = TILE_WALL;
-      game->map[0][GRID_COUNT_Y - 1 - i] = TILE_WALL;
-      game->map[GRID_COUNT_X - 1 - i][GRID_COUNT_Y - 1] = TILE_WALL;
-      game->map[GRID_COUNT_X - 1][GRID_COUNT_Y - 1 - i] = TILE_WALL;
+    for (int i = 1; i < size + 1; i++) {
+      game->map[i][1] = TILE_WALL;
+      game->map[1][i] = TILE_WALL;
+      game->map[GRID_COUNT_X - 2 - i][1] = TILE_WALL;
+      game->map[GRID_COUNT_X - 2][i] = TILE_WALL;
+      game->map[i][GRID_COUNT_Y - 2] = TILE_WALL;
+      game->map[1][GRID_COUNT_Y - 2 - i] = TILE_WALL;
+      game->map[GRID_COUNT_X - 2 - i][GRID_COUNT_Y - 2] = TILE_WALL;
+      game->map[GRID_COUNT_X - 2][GRID_COUNT_Y - 2 - i] = TILE_WALL;
     }
   } else if (level == 3) {
     // Four Pillars layout
@@ -51,15 +47,19 @@ void LoadStage(GameData *game, int level) {
     // THE CASTLE
     for (int x = 0; x < GRID_COUNT_X; x++) {
       for (int y = 0; y < GRID_COUNT_Y; y++) {
+        // Portal Gap: Outermost tiles (0 and GRID_COUNT-1) are always empty
+        if (x == 0 || x == GRID_COUNT_X - 1 || y == 0 || y == GRID_COUNT_Y - 1)
+            continue;
+
         bool isBorder =
-            (x < 2 || x >= GRID_COUNT_X - 2 || y < 2 || y >= GRID_COUNT_Y - 2);
+            (x < 3 || x >= GRID_COUNT_X - 3 || y < 3 || y >= GRID_COUNT_Y - 3);
         int mid = GRID_COUNT_X / 2;
         bool isGateX = (x >= mid - 2 && x <= mid + 1);
         bool isGateY = (y >= mid - 2 && y <= mid + 1);
         if (isBorder) {
-          if ((x < 2 || x >= GRID_COUNT_X - 2) && isGateY)
+          if ((x < 3 || x >= GRID_COUNT_X - 3) && isGateY)
             continue;
-          if ((y < 2 || y >= GRID_COUNT_Y - 2) && isGateX)
+          if ((y < 3 || y >= GRID_COUNT_Y - 3) && isGateX)
             continue;
           game->map[x][y] = TILE_WALL;
         }
@@ -96,7 +96,7 @@ void LoadChaosStage(GameData *game, int level) {
       int rx = GetRandomValue(2, GRID_COUNT_X - 3);
       int ry = GetRandomValue(2, GRID_COUNT_Y - 3);
 
-      // 5x5 Spawn Safe Zone check
+      // 5x5 Safe Zone Check (Center 15,15)
       if (rx >= 13 && rx <= 17 && ry >= 13 && ry <= 17)
         continue;
 
@@ -115,7 +115,7 @@ void LoadChaosStage(GameData *game, int level) {
       int rx = GetRandomValue(3, GRID_COUNT_X - 4);
       int ry = GetRandomValue(3, GRID_COUNT_Y - 4);
 
-      // 5x5 Spawn Safe Zone check
+      // 5x5 Safe Zone Check (Center 15,15)
       if (rx >= 13 && rx <= 17 && ry >= 13 && ry <= 17)
         continue;
 
@@ -128,5 +128,30 @@ void LoadChaosStage(GameData *game, int level) {
     LoadStage(game, 4); // The Castle
   }
 
-  // Portal logic removed to fix building and gameplay bugs
+  // Portal Pair (Always refresh)
+  game->portals[0] = (Vector2){-1, -1};
+  game->portals[1] = (Vector2){-1, -1};
+  int p = 0;
+  while (p < 2) {
+    int rx = GetRandomValue(3, GRID_COUNT_X - 4);
+    int ry = GetRandomValue(3, GRID_COUNT_Y - 4);
+
+    // 5x5 Safe Zone Check for Portals
+    if (rx >= 13 && rx <= 17 && ry >= 13 && ry <= 17)
+      continue;
+
+    if (game->map[rx][ry] == TILE_EMPTY) {
+      // Ensure portals are at least 10 blocks apart (Manhattan distance)
+      if (p == 1) {
+        float dist = fabsf(game->portals[0].x - (float)rx) +
+                     fabsf(game->portals[0].y - (float)ry);
+        if (dist < 10.0f)
+          continue;
+      }
+
+      game->map[rx][ry] = TILE_PORTAL;
+      game->portals[p] = (Vector2){(float)rx, (float)ry};
+      p++;
+    }
+  }
 }

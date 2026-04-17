@@ -22,7 +22,6 @@ typedef struct Snake {
     
     bool isAlive;
     bool justAteFood;
-    float invincibilityTimer;
 } Snake;
 
 void InitSnake(Snake* snake);

@@ -1,0 +1,23 @@
+# Binaries
+*.exe
+*.o
+*.a
+*.dll
+
+# Local Game Data
+highscore.txt
+
+# Build Artifacts
+snake_game_*.exe
+
+# IDE folders
+.vscode/
+.idea/
+*.swp
+*.save
+
+# External Libraries (Optional to ignore, but keeps repo small)
+# raylib/ 
+
+# Temporary Makefile tests
+Makefile_test*
